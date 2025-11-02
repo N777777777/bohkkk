@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>TON HUB</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <style>
+:root {
+  --font-family: 'Poppins', sans-serif;
+  --primary-color: #0088cc;
+  --secondary-color: #36aeea;
+  --background-light: #f5f8fb;
+  --surface-light: #ffffff;
+  --text-primary-light: #1b1f23;
+  --text-secondary-light: #6c757d;
+  --border-light: #dce3ea;
+  --background-dark: #17212b;
+  --surface-dark: #1c2a38;
+  --text-primary-dark: #e9eef3;
+  --text-secondary-dark: #a0b3c1;
+  --border-dark: #2b3a4a;
+  --success: #2ca67a;
+  --danger: #e53935;
+  --pending: #f8c44f;
+}
+      
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: var(--font-family); transition: background-color 0.3s, color 0.3s; -webkit-font-smoothing: antialiased; }
+body.light-theme { background-color: var(--background-light); color: var(--text-primary-light); }
+body.dark-theme { background-color: var(--background-dark); color: var(--text-primary-dark); }
+#app { max-width: 500px; margin: 0 auto; padding-bottom: 80px; }
+.page { display: none; padding: 15px; }
+.page.active { display: block; animation: fadeIn 0.4s ease-in-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+.profile-header {
+    padding: 25px 15px; 
+    border-bottom: 1px solid;
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    text-align: center;
+}
+.light-theme .profile-header { background-color: var(--surface-light); border-bottom-color: var(--border-light); }
+.dark-theme .profile-header { background-color: var(--surface-dark); border-bottom-color: var(--border-dark); }
+#user-photo { width: 80px; height: 80px; border-radius: 50%; border: 4px solid var(--primary-color); object-fit: cover; margin-bottom: 10px; }
+#user-name { font-size: 1.4rem; font-weight: 700; margin-bottom: 5px; }
+#user-balance-container { font-size: 1rem; font-weight: 500; }
+#user-balance { font-size: 1.1rem; font-weight: 700; color: var(--primary-color); }
+
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin: 20px 0; }
+.stat-card { padding: 15px; border-radius: 12px; text-align: center; border: 1px solid; }
+.light-theme .stat-card { background-color: var(--surface-light); border-color: var(--border-light); }
+.dark-theme .stat-card { background-color: var(--surface-dark); border-color: var(--border-dark); }
+.stat-card h3 { font-size: 0.85rem; font-weight: 500; margin-bottom: 8px; text-transform: uppercase; }
+.light-theme .stat-card h3 { color: var(--text-secondary-light); } 
+.dark-theme .stat-card h3 { color: var(--text-secondary-dark); }
+.stat-card p { font-size: 1.4rem; font-weight: 600; color: var(--primary-color); }
+
+.chart-container, .earning-wallet-card { padding: 20px; border-radius: 12px; margin-top: 20px; border: 1px solid; }
+.light-theme .chart-container, .light-theme .earning-wallet-card { background-color: var(--surface-light); border-color: var(--border-light); }
+.dark-theme .chart-container, .dark-theme .earning-wallet-card { background-color: var(--surface-dark); border-color: var(--border-dark); }
+.chart { display: flex; justify-content: space-around; align-items: flex-end; height: 150px; border-left: 1px solid; border-bottom: 1px solid; padding-top: 10px; }
+.light-theme .chart { border-color: var(--border-light); } 
+.dark-theme .chart { border-color: var(--border-dark); }
+.bar { width: 12%; background: linear-gradient(to top, var(--primary-color), var(--secondary-color)); border-radius: 5px 5px 0 0; position: relative; cursor: pointer; }
+.bar .tooltip { position: absolute; top: -30px; left: 50%; transform: translateX(-50%); background: var(--secondary-color); color: white; padding: 3px 7px; border-radius: 5px; font-size: 0.8rem; white-space: nowrap; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+.bar:hover .tooltip { opacity: 1; }
+.chart-labels { display: flex; justify-content: space-around; font-size: 0.75rem; margin-top: 5px; }
+
+.history-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; border-radius: 10px; margin-bottom: 10px; }
+.light-theme .history-item { background-color: var(--surface-light); border: 1px solid var(--border-light); }
+.dark-theme .history-item { background-color: var(--surface-dark); border: 1px solid var(--border-dark); }
+.history-details p { margin: 0; } 
+.history-details p:first-child { font-weight: 600; }
+.history-status { padding: 5px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; color: white; text-transform: capitalize; }
+.status-completed { background-color: var(--success); } 
+.status-pending { background-color: var(--pending); } 
+.status-rejected { background-color: var(--danger); }
+
+.progress-container { margin-bottom: 20px; }
+.progress-info { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9rem; font-weight: 500; }
+.progress-bar-bg { width: 100%; height: 10px; border-radius: 5px; }
+.light-theme .progress-bar-bg { background-color: var(--border-light); }
+.dark-theme .progress-bar-bg { background-color: var(--border-dark); }
+.progress-bar-fg { height: 100%; border-radius: 5px; background: linear-gradient(90deg, var(--primary-color), var(--secondary-color)); transition: width 0.3s ease; }
+
+form input, form select, form textarea { transition: all 0.2s ease-in-out; border: 1px solid; }
+.light-theme form input, .light-theme form select { border-color: var(--border-light); }
+.dark-theme form input, .dark-theme form select { border-color: var(--border-dark); }
+form input:focus, form select:focus, form textarea:focus { outline: none; border-color: var(--primary-color) !important; box-shadow: 0 0 0 3px rgba(0, 136, 204, 0.2); }
+
+.popup-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 10000; }
+.popup-content { padding: 30px; border-radius: 15px; text-align: center; max-width: 80%; }
+.light-theme .popup-content { background-color: var(--surface-light); } 
+.dark-theme .popup-content { background-color: var(--surface-dark); }
+.popup-content h2 { margin-bottom: 15px; color: var(--primary-color); } 
+.popup-content p { margin-bottom: 20px; }
+.popup-close-btn { padding: 10px 25px; border: none; border-radius: 8px; color: #fff; background-color: var(--primary-color); cursor: pointer; }
+.popup-loader .spinner { width: 40px; height: 40px; border-radius: 50%; border: 4px solid; border-color: var(--primary-color) transparent; animation: spin 1s linear infinite; margin: 0 auto 15px;}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+#app-loader { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+.light-theme #app-loader { background-color: var(--background-light); } 
+.dark-theme #app-loader { background-color: var(--background-dark); }
+#app-loader .spinner { width: 50px; height: 50px; border-radius: 50%; border: 5px solid; border-color: var(--primary-color) transparent; animation: spin 1s linear infinite; }
+#loading-progress { margin-top: 15px; font-size: 1.2rem; font-weight: 600; }
+.light-theme #loading-progress { color: var(--text-primary-light); } 
+.dark-theme #loading-progress { color: var(--text-primary-dark); }
+
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; max-width: 500px; margin: 0 auto; display: flex; justify-content: space-around; padding: 10px 0; border-top: 1px solid; z-index: 1000; }
+.light-theme .bottom-nav { background-color: var(--surface-light); border-top-color: var(--border-light); }
+.dark-theme .bottom-nav { background-color: var(--surface-dark); border-top-color: var(--border-dark); }
+.nav-btn { background: none; border: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; font-family: var(--font-family); font-size: 0.75rem; transition: color 0.2s; flex-grow: 1; }
+.light-theme .nav-btn { color: var(--text-secondary-light); } 
+.dark-theme .nav-btn { color: var(--text-secondary-dark); }
+.nav-btn i { font-size: 1.5rem; margin-bottom: 4px; } 
+.nav-btn.active { color: var(--primary-color); }
+
+.task-container { padding: 20px; border-radius: 12px; margin-bottom: 15px; display: flex; align-items: center; gap: 15px; }
+.light-theme .task-container { background-color: var(--surface-light); border: 1px solid var(--border-light); }
+.dark-theme .task-container { background-color: var(--surface-dark); border: 1px solid var(--border-dark); }
+.task-icon-img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; }
+.task-info h3 { font-size: 1.1rem; font-weight: 600; } 
+.task-info p { font-size: 0.85rem; }
+.action-btn { padding: 10px 20px; font-size: 0.9rem; font-weight: 600; color: #fff; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; background: linear-gradient(45deg, var(--primary-color), var(--secondary-color)); margin-left: auto; white-space: nowrap; }
+.action-btn:disabled { background: #808B96; cursor: not-allowed; }
+
+.leaderboard-toggle { display: flex; justify-content: space-around; margin-bottom: 15px; }
+.toggle-btn { padding: 10px 20px; border: none; background: none; font-size: 1rem; cursor: pointer; }
+.light-theme .toggle-btn { color: var(--text-secondary-light); } 
+.dark-theme .toggle-btn { color: var(--text-secondary-dark); }
+.toggle-btn.active { font-weight: 700; color: var(--primary-color); border-bottom: 2px solid var(--primary-color); }
+.leaderboard-list { list-style: none; }
+.leaderboard-item { display: flex; align-items: center; padding: 10px; margin-bottom: 8px; border-radius: 8px; }
+.light-theme .leaderboard-item { background-color: var(--surface-light); } 
+.dark-theme .leaderboard-item { background-color: var(--surface-dark); }
+.rank { font-size: 1.2rem; font-weight: 700; color: var(--primary-color); width: 40px; }
+.leaderboard-item img { width: 40px; height: 40px; border-radius: 50%; margin-right: 10px; object-fit: cover; }
+.leaderboard-name { font-weight: 600; flex-grow: 1; } 
+.leaderboard-score { font-weight: 600; color: var(--primary-color); }
+
+.promo-card {
+  background: #1A2432;
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  margin: 16px 0;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+.promo-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.promo-header h3 {
+  color: #fff;
+  font-weight: 600;
+  font-size: 16px;
+}
+.promo-body {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.promo-body input {
+  flex: 1;
+  background: #111a25;
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 8px;
+  padding: 10px;
+  color: #fff;
+  outline: none;
+}
+.promo-body input::placeholder {
+  color: rgba(255,255,255,0.4);
+}
+.promo-body button {
+  background: linear-gradient(90deg, #00C6FF, #0072FF);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: 0.2s;
+}
+.promo-body button:hover {
+  opacity: 0.9;
+}
+
+#promoMessage {
+  display: none;
+  margin-top: 10px;
+  font-size: 14px;
+  text-align: left;
+  transition: opacity 0.3s ease;
+}
+#promoMessage.success {
+  color: #4CAF50;
+}
+#promoMessage.error {
+  color: #FF5252;
+}
+
+.ADS-card, .partner-card, .w-card {
+  background: #0e1621;
+  border-radius: 14px;
+  padding: 14px;
+  margin: 20px auto;
+  text-align: center;
+  width: 92%;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.ADS-card h3, .partner-card h3, .w-card h3 {
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+  margin: 0;
+}
+
+.earnings-section {
+  background: var(--surface-dark);
+  border-radius: 12px;
+  padding: 15px;
+  display: none;
+}
+    </style>
+</head>
+<body>
+    <div id="app-loader">
+        <div class="spinner"></div>
+        <p id="loading-progress">0%</p>
+    </div>
+
+    <div id="popup" class="popup-overlay">
+        <div class="popup-content">
+            <div id="popup-body"></div>
+        </div>
+    </div>
+
+    <div id="app" style="display: none;">
+        <header class="profile-header">
+            <img id="user-photo" src="https://via.placeholder.com/80" alt="User">
+            <h1 id="user-name">Loading...</h1>
+            <div id="user-balance-container">Balance: <span id="user-balance">0.00000</span> TON</div>
+        </header>
+
+        <main id="main-content">
+            <div id="home-page" class="page active">
+                <div class="promo-card">
+                    <div class="promo-header">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="26" height="26">
+                            <defs>
+                                <linearGradient id="blueGiftGradient" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stop-color="#00BFFF"/>
+                                    <stop offset="100%" stop-color="#1E90FF"/>
+                                </linearGradient>
+                            </defs>
+                            <rect x="6" y="14" width="52" height="10" rx="2" fill="url(#blueGiftGradient)"/>
+                            <rect x="10" y="24" width="44" height="28" rx="3" fill="url(#blueGiftGradient)"/>
+                            <rect x="30" y="14" width="4" height="38" fill="#ffffff" opacity="0.9"/>
+                            <rect x="10" y="32" width="44" height="4" fill="#ffffff" opacity="0.9"/>
+                            <path fill="url(#blueGiftGradient)" d="M32 14 c-2-5-8-7-12-4 c-3 2-3 6 0 8 c3 2 7 1 10-2 c3 3 7 4 10 2 c3-2 3-6 0-8 c-4-3-10-1-12 4z"/>
+                        </svg>
+                        <h3>Promo Code</h3>
+                    </div>
+                    <div class="promo-body">
+                        <input type="text" id="promoInput" placeholder="Enter lucky code" />
+                        <button onclick="applyPromo()">Claim</button>
+                    </div>
+                    <p id="promoMessage"></p>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card"><h3>TODAY ADS</h3><p id="daily-ads-watched">0 / 0</p></div>
+                    <div class="stat-card"><h3>TOTAL ADS</h3><p id="total-ads-watched">0</p></div>
+                    <div class="stat-card"><h3>Total Referrals</h3><p id="referral-count">0</p></div>
+                    <div class="stat-card"><h3>Total Earnings</h3><p id="total-earned">0.00</p></div>
+                </div>
+
+                <div id="earnings-graph-container" class="chart-container">
+                    <h3>Last 7 Days Earnings</h3>
+                    <div id="earnings-chart" class="chart"></div>
+                    <div id="earnings-chart-labels" class="chart-labels"></div>
+                </div>
+                <div id="dynamic-links-container" style="margin-top: 20px;"></div>
+            </div>
+
+            <div id="tasks-page" class="page">
+                <div class="earning-wallet-card">
+                    <div id="referral-section"></div>
+                    <div class="earnings-section">
+                        <h3>Claim Earnings</h3>
+                        <p style="font-size: 1.8rem; font-weight: 700; color: var(--primary-color); margin: 10px 0;">
+                            <span id="earning-wallet-balance">0.00</span>
+                        </p>
+                        <button id="move-to-balance-btn" class="action-btn" style="width:100%; margin-top: 15px;" disabled>CLAIM</button>
+                    </div>
+                </div>
+
+                <div class="ADS-card">
+                    <h3>WATCH ADS</h3>
+                </div>
+
+                <div id="ad-progress-container" class="progress-container" style="margin-top:20px;"></div>
+                <div id="ad-task-container"></div>
+
+                <div class="partner-card">
+                    <h3>Partner Tasks</h3>
+                </div>
+                <div id="dynamic-tasks-container"></div>
+            </div>
+
+            <div id="leaderboard-page" class="page">
+                <h2>Leaderboard</h2>
+                <div class="leaderboard-toggle">
+                    <button class="toggle-btn active" data-board="referral">TOP Leaders</button>
+                    <button class="toggle-btn" data-board="earning">TOP Users</button>
+                </div>
+                <div id="referral-board">
+                    <ul class="leaderboard-list" id="referral-leaderboard-list"></ul>
+                </div>
+                <div id="earning-board" style="display: none;">
+                    <ul class="leaderboard-list" id="earning-leaderboard-list"></ul>
+                </div>
+            </div>
+
+            <div id="profile-page" class="page">
+                <div id="withdraw-section"></div>
+                <div id="withdrawal-history-section" style="margin-top: 20px;">
+                    <div class="w-card">
+                        <h3>Withdrawal History</h3>
+                    </div>
+                    <div id="withdrawal-history-list"></div>
+                </div>
+            </div>
+        </main>
+
+        <nav class="bottom-nav">
+            <button class="nav-btn active" data-page="home-page">
+                <i class="fa-solid fa-house-chimney"></i><span>Home</span>
+            </button>
+            <button class="nav-btn" data-page="tasks-page">
+                <i class="fa-solid fa-coins"></i><span>Earnings</span>
+            </button>
+            <button class="nav-btn" data-page="leaderboard-page">
+                <i class="fa-solid fa-trophy"></i><span>Leaderboard</span>
+            </button>
+            <button class="nav-btn" data-page="profile-page">
+                <i class="fa-solid fa-wallet"></i><span>Withdraw</span>
+            </button>
+        </nav>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="core-system-v2.js"></script>
+    <script src="main-handler-v3.js"></script>
+</body>
+</html>
