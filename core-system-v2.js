@@ -11,9 +11,5 @@ const firebaseConfig = {
   measurementId: "G-5PZBK5VZ4Q"
 };
 
-// Promotional System Config
-const promoCodes = {
-  "NEWTON1": 0.001,
-  "NEWTON2": 50,
-  "NEWTON3": 25
-};
+// ملاحظة: تم نقل Promo Codes إلى Firebase Database للأمان
+// Promo codes are now managed in Firebase Database
