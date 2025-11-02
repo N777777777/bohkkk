@@ -421,6 +421,14 @@
         };
 
         const initApp = async () => {
+            if (!tg.initDataUnsafe || Object.keys(tg.initDataUnsafe).length === 0) {
+                // إذا لم يتم تحميل بيانات المستخدم، ربما يكون المستخدم يفتح التطبيق خارج تيليجرام
+                // نعرض الصفحة الرئيسية ونخفي شاشة التحميل
+                console.error("Telegram WebApp data not available. Running in standalone mode.");
+                document.getElementById('app-loader').style.display = 'none';
+                showPage('home-page');
+                return;
+            }
             tg.ready(); tg.expand();
             document.body.className = `${tg.colorScheme}-theme`;
             tgUser = tg.initDataUnsafe.user;
