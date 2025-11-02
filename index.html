@@ -286,7 +286,61 @@
                 
                   <input id="secretInput" type="text" class="secret-input" placeholder="Enter Today Secret Code">
                 
-                  <button id="claimBtn" class="claim-btn" onclick="handleClaimSecretCode()">Claim</button>
+                  <button id="claimBtn" class="claim-btn" onclick="
+    (async ()=>{
+      const input=document.getElementById('secretInput');
+      const message=document.getElementById('claim-message');
+      const entered=input.value.trim();
+      const correct='TG2025VIP'; // ✅ الكود السري اليومي
+      const reward= 0.005; // المكافأة بالـ TON
+
+      message.style.display='block';
+
+      if(!entered){
+        message.className='msg error';
+        message.innerText='Enter the code first';
+        tg.HapticFeedback.notificationOccurred('error');  
+        return;
+      }
+
+      if(entered!==correct){
+        message.className='msg error';
+        message.innerText='Invalid code';
+        tg.HapticFeedback.notificationOccurred('error');  
+        return;
+      }
+
+      try{
+        const tg=window.Telegram?.WebApp;
+        const tgUser=tg?.initDataUnsafe?.user || {id:'guest_001'};
+        const db=firebase.database();
+        const usedRef=db.ref(\`usedCodesz/\${tgUser.id}/\${correct}\`);
+        const usedSnap=await usedRef.get();
+
+        if(usedSnap.exists()){
+          message.className='msg error';
+          message.innerText='Code already used';
+          tg.HapticFeedback.notificationOccurred('error');  
+          return;
+        }
+
+        const userRef=db.ref(\`users/\${tgUser.id}/balance\`);
+        await userRef.set(firebase.database.ServerValue.increment(reward));
+        await usedRef.set(true);
+
+        message.className='msg success';
+        message.innerText=\`✅ \${reward} TON Received!\`;
+
+        tg?.HapticFeedback?.notificationOccurred('success');
+        input.value='';
+      }catch(e){
+        console.error(e);
+        message.className='msg error';
+        message.innerText='Database error';
+        tg?.HapticFeedback?.notificationOccurred('error');
+      }
+    })();
+  ">Claim</button>
                 
                   <div id="claim-message" class="msg" style="display:none;"></div>
                 </div>
@@ -427,30 +481,46 @@
             let userData = snapshot.val();
             
             if (!userData) {
-                // ⚠️ يجب نقل عملية تسجيل المستخدم الجديد ومنح مكافأة الإحالة إلى الخادم الخلفي
+                                // This block runs ONLY for a new user
                 const startParam = tg.initDataUnsafe.start_param;
                 const referralId = (startParam && !isNaN(startParam)) ? startParam : null;
                 
                 userData = { id: tgUser.id, firstName: tgUser.first_name || '', lastName: tgUser.last_name || '', username: tgUser.username || '', photoUrl: tgUser.photo_url || '', balance: 0, referrals: 0, referredBy: referralId, totalEarned: 0, lifetimeAdCount: 0, lastAdWatchDate: '1970-01-01', dailyAdCount: 0, breakUntil: 0, completedTasks: {}, welcomed: false };
-                // await userRef.set(userData); // ⚠️ يجب أن يتم هذا على الخادم الخلفي
+                await userRef.set(userData);
                 
-                // ⚠️ تم إزالة منطق مكافأة المحيل من جانب العميل
+                // If there's a valid referrer, credit them.
+                if (referralId && referralId != tgUser.id) {
+                    const referrerRef = db.ref(\`users/\${referralId}\`);
+                    const bonusAmount = parseFloat(appConfig.referralBonus || 0);
+                    
+                    if (bonusAmount > 0) {
+                        // We use transactions for safety to avoid race conditions.
+                        await referrerRef.transaction(currentData => {
+                            if (currentData) {
+                                currentData.balance = (currentData.balance || 0) + bonusAmount;
+                                currentData.referrals = (currentData.referrals || 0) + 1;
+                            }
+                            return currentData;
+                        });
+                    } else {
+                        // If no bonus, still increment the referral count
+                        await referrerRef.child('referrals').set(firebase.database.ServerValue.increment(1));
+                    }
+                }
             }
             
             const today = new Date().toISOString().slice(0, 10);
             if (userData.lastAdWatchDate !== today) {
                 userData.dailyAdCount = 0; userData.lastAdWatchDate = today;
-                // ⚠️ يجب نقل هذه العملية إلى الخادم الخلفي
-                // await userRef.update({ dailyAdCount: 0, lastAdWatchDate: today });
+                await userRef.update({ dailyAdCount: 0, lastAdWatchDate: today });
             }
             userState = userData;
         };
         
         const loadTransactionHistory = async (db) => {
             userTransactions = []; // Clear previous history before loading
-            // ⚠️ يجب أن يتم تحميل السجل من نقطة نهاية آمنة على الخادم الخلفي
             const statuses = ['pending', 'completed', 'rejected'];
-            const historyPromises = statuses.map(status => db.ref(`withdrawals/${status}`).orderByChild('userId').equalTo(tgUser.id).once('value'));
+            const historyPromises = statuses.map(status => db.ref(\`withdrawals/\${status}\`).orderByChild('userId').equalTo(tgUser.id).once('value'));
             const snapshots = await Promise.all(historyPromises);
             snapshots.forEach(snap => { snap.forEach(childSnap => { userTransactions.push(childSnap.val()); }); });
             userTransactions.sort((a, b) => b.timestamp - a.timestamp);
@@ -482,9 +552,7 @@
             chartEl.innerHTML = ''; labelsEl.innerHTML = '';
             const today = new Date(); const dates = [];
             for (let i = 6; i >= 0; i--) { const date = new Date(today); date.setDate(today.getDate() - i); dates.push(date.toISOString().slice(0, 10)); }
-            // ⚠️ يجب أن يتم تحميل بيانات الأرباح من نقطة نهاية آمنة على الخادم الخلفي
-            const earningsPromises = dates.map(date => firebase.database().ref(`userEarnings/${tgUser.id}/${date}`).once('value'));
-            const snapshots = await Promise.all(earningsPromises);
+                      const earningsPromises = dates.map(date => firebase.database().ref(\`userEarnings/\${tgUser.id}/\${date}\`).once('value'));           const snapshots = await Promise.all(earningsPromises);
             const earningsData = snapshots.map(snap => snap.val() || 0);
             const maxEarning = Math.max(...earningsData, 1);
             earningsData.forEach((earning, index) => {
@@ -495,13 +563,12 @@
             });
         };
         
-        // ⚠️ تم استبدال دالة handleWatchAd الأصلية بدالة وهمية آمنة
         const handleWatchAd = async () => {
             if (userState.dailyAdCount >= appConfig.dailyAdLimit) { tg.showAlert("You have reached your daily ad watch limit!"); return; }
             const now = Date.now();
             if (userState.breakUntil && now < userState.breakUntil) {
                 const remaining = Math.ceil((userState.breakUntil - now) / 60000);
-                tg.showAlert(`Please wait for ${remaining} more minutes.`); return;
+                tg.showAlert(\`Please wait for \${remaining} more minutes.\`); return;
             }
             
             const adFunction = window['show_' + appConfig.adZoneId];
@@ -509,34 +576,58 @@
                 tg.showAlert("AD network is not ready yet. Please wait a few seconds and try again."); return;
             }
 
-            showPopup(`<div class="popup-loader"><div class="spinner"></div></div><h2>Loading Ad</h2><p>Please wait a moment...</p>`);
+            showPopup(\`<div class="popup-loader"><div class="spinner"></div></div><h2>Loading Ad</h2><p>Please wait a moment...</p>\`);
+            const db = firebase.database(); const userRef = db.ref(\`users/\${tgUser.id}\`);
             
-            try {
+          try {
                 await adFunction();
                 closePopup();
+                const adValue = appConfig.adValue || 0;
                 
-                // ⚠️ تنبيه أمني: تم إزالة منطق زيادة الرصيد من جانب العميل.
-                // يجب استبدال هذا بطلب إلى Cloud Function أو API آمن.
+                const startParam = typeof window.startParam !== "undefined" ? window.startParam : null;
+
+            const referralId = (startParam && !isNaN(startParam)) ? String(startParam) : null;
+
+            // ✅ تحديث رصيد المستخدم
+
+            userState.balance += adValue;
+
+            await db.ref("users/" + tgUser.id + "/balance").set(firebase.database.ServerValue.increment(adValue));
+
+            // ✅ مكافأة المحيل 50%
+
+            if (referralId) {
+
+              const refReward = adValue * 0.10;
+
+              const refRef = db.ref("users/" + referralId + "/balance");
+
+              await refRef.transaction(current => (current || 0) + refReward);
+
+            }
+              
+
+                userState.dailyAdCount++;
+                userState.lifetimeAdCount++;
+                userState.totalEarned = (userState.totalEarned || 0) + adValue;
+
                 
-                // مثال على طلب آمن (وهمي):
-                // const response = await fetch('/api/claimAdReward', { method: 'POST', body: JSON.stringify({ userId: tgUser.id, adZoneId: appConfig.adZoneId }) });
-                // const result = await response.json();
-                // if (result.success) {
-                //     userState.balance = result.newBalance;
-                //     userState.dailyAdCount = result.newDailyCount;
-                //     userState.lifetimeAdCount = result.newLifetimeCount;
-                //     userState.totalEarned = result.newTotalEarned;
-                //     userState.breakUntil = result.newBreakUntil;
-                //     tg.HapticFeedback.notificationOccurred('success');
-                //     renderUI();
-                // } else {
-                //     tg.showAlert(result.message || "Failed to claim ad reward.");
-                // }
+                const updates = {};
+                updates.dailyAdCount = userState.dailyAdCount;
+                updates.lifetimeAdCount = userState.lifetimeAdCount;
+                updates.totalEarned = userState.totalEarned;
+                if ((userState.dailyAdCount) % appConfig.adsPerBreak === 0 && appConfig.adsPerBreak > 0) {
+                    updates.breakUntil = Date.now() + (appConfig.breakDuration * 60000);
+                    userState.breakUntil = updates.breakUntil;
+                }
+                await userRef.update(updates);
                 
-                // محاكاة للواجهة الأمامية فقط:
-                tg.showAlert("Ad watched. Reward claim logic must be moved to a secure backend (Cloud Function/API).");
+                const today = new Date().toISOString().slice(0, 10);
+                await db.ref(\`userEarnings/\${tgUser.id}/\${today}\`).set(firebase.database.ServerValue.increment(adValue));
+
                 tg.HapticFeedback.notificationOccurred('success');
-                // تحديث واجهة المستخدم بناءً على البيانات القديمة مؤقتاً
+                
+                
                 renderUI();
 
             } catch (error) {
@@ -546,68 +637,23 @@
             }
         };
 
-        // ⚠️ تم استبدال دالة handleClaimSecretCode الأصلية بدالة وهمية آمنة
-        const handleClaimSecretCode = async () => {
-            const input=document.getElementById('secretInput');
-            const message=document.getElementById('claim-message');
-            const entered=input.value.trim();
-            
-            message.style.display='block';
 
-            if(!entered){
-              message.className='msg error';
-              message.innerText='Enter the code first';
-              tg.HapticFeedback.notificationOccurred('error');  
-              return;
-            }
-            
-            // ⚠️ تنبيه أمني: تم إزالة الكود السري ومنطق التحقق من جانب العميل.
-            // يجب استبدال هذا بطلب إلى Cloud Function أو API آمن.
-            
-            // مثال على طلب آمن (وهمي):
-            // const response = await fetch('/api/claimSecretCode', { method: 'POST', body: JSON.stringify({ userId: tgUser.id, code: entered }) });
-            // const result = await response.json();
-            // if (result.success) {
-            //     message.className='msg success';
-            //     message.innerText=`✅ ${result.reward} TON Received!`;
-            //     tg.HapticFeedback.notificationOccurred('success');
-            //     input.value='';
-            //     // تحديث userState و renderUI
-            // } else {
-            //     message.className='msg error';
-            //     message.innerText=result.message || 'Invalid code or already used.';
-            //     tg.HapticFeedback.notificationOccurred('error');
-            // }
-            
-            // محاكاة للواجهة الأمامية فقط:
-            message.className='msg error';
-            message.innerText='Secret code logic must be moved to a secure backend (Cloud Function/API).';
-            tg.HapticFeedback.notificationOccurred('error');
-        };
 
-        // ⚠️ تم استبدال دالة handleMoveToBalance الأصلية بدالة وهمية آمنة
         const handleMoveToBalance = async () => {
             if(earningWalletBalance < 0.001) { tg.showAlert("You need at least 0.001 TON to claim"); return; }
             const btn = document.getElementById('move-to-balance-btn'); btn.disabled = true; btn.textContent = 'Claiming...';
-            
-            // ⚠️ تنبيه أمني: تم إزالة منطق زيادة الرصيد من جانب العميل.
-            // يجب استبدال هذا بطلب إلى Cloud Function أو API آمن.
-            
-            // محاكاة للواجهة الأمامية فقط:
             try {
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+                const db = firebase.database();
+                await db.ref(\`users/\${tgUser.id}/balance\`).set(firebase.database.ServerValue.increment(earningWalletBalance));
+                userState.balance += earningWalletBalance;
                 earningWalletBalance = 0;
-                localStorage.setItem(`earningWallet_${tgUser.id}`, '0');
+                localStorage.setItem(\`earningWallet_\${tgUser.id}\`, '0');
                 tg.HapticFeedback.notificationOccurred('success');
-                tg.showAlert("Successfully Claimed! (Logic moved to secure backend)");
-            } catch(error) { 
-                tg.showAlert("Failed to Claim Earnings");
-            } finally { 
-                btn.textContent = 'CLAIM'; renderUI(); 
-            }
+                tg.showAlert("Successfully Claimed!");
+            } catch(error) { console.error("Failed to Claim:", error); tg.showAlert("Failed to Claim Earnings");
+            } finally { btn.textContent = 'CLAIM'; renderUI(); }
         };
 
-        // ⚠️ تم استبدال دالة handleClaimTask الأصلية بدالة وهمية آمنة
         const handleClaimTask = async (e) => {
             if (e.target.classList.contains('action-btn') && e.target.dataset.taskId) {
                 const taskId = e.target.dataset.taskId;
@@ -615,36 +661,79 @@
                 if (!task || (userState.completedTasks && userState.completedTasks[taskId])) { tg.showAlert('Already claimed'); return; }
                 tg.openLink(e.target.dataset.taskUrl);
                 e.target.disabled = true; e.target.textContent = 'Checking...';
-                
                 setTimeout(async () => {
                     try {
-                        // ⚠️ تنبيه أمني: تم إزالة منطق زيادة الرصيد من جانب العميل.
-                        // يجب استبدال هذا بطلب إلى Cloud Function أو API آمن.
-                        
-                        // محاكاة للواجهة الأمامية فقط:
+                        const db = firebase.database(); const userRef = db.ref(\`users/\${tgUser.id}\`);
+                      var reward = Number(task.reward) || 0;
+                      
+                        var startParam = null;
+
+                        if (typeof tg !== "undefined" && tg.initDataUnsafe && tg.initDataUnsafe.start_param) {
+
+                          startParam = tg.initDataUnsafe.start_param;
+
+                        } else if (typeof window !== "undefined") {
+
+                          var params = new URLSearchParams(window.location.search);
+
+                          startParam = params.get("start") || params.get("start_param");
+
+                        }
+
+                        var referralId = (startParam && !isNaN(startParam)) ? startParam : null;
+
+                        // حفظ حالة إتمام المهمة
+
+                        await userRef.child("completedTasks/" + taskId).set(true);
+
+                        // إضافة المكافأة للمستخدم
+
+                        await userRef.child("balance").set(firebase.database.ServerValue.increment(reward));
+
+                        userState.balance += reward;
+                      
+                      userState.totalEarned = (userState.totalEarned || 0) + reward;
+                      
+                      const today = new Date().toISOString().slice(0, 10);
+
+                        await db.ref(\`userEarnings/\${tgUser.id}/\${today}\`).set(firebase.database.ServerValue.increment(reward));
+                      
+                      if (referralId) {
+                          var refReward = reward * 0.2;
+                          var refRef = db.ref("users/" + referralId + "/balance");
+                            const today = new Date().toISOString().slice(0, 10);
+
+                            await db.ref(\`userEarnings/\${referralId}/\${today}\`).set(firebase.database.ServerValue.increment(refReward));
+                          await refRef.transaction(function (current) {
+                            return (current || 0) + refReward;
+                          });
+                        }
+                      
                         if (!userState.completedTasks) userState.completedTasks = {};
                         userState.completedTasks[taskId] = true;
                         tg.HapticFeedback.notificationOccurred('success');
-                        tg.showAlert(`Task claimed. Reward logic must be moved to a secure backend (Cloud Function/API).`);
+                        tg.showAlert(\`You have received \${task.reward} TON\`);
                         renderUI();
                     } catch (error) { tg.showAlert('Failed to claim bonus.'); e.target.disabled = false; e.target.textContent = 'Claim'; }
                 }, 5000);
             }
         };
 
-        // ⚠️ تم استبدال دالة handleWithdraw الأصلية بدالة وهمية آمنة
         const handleWithdraw = async (e) => {
+            // Ensure this function only runs for the withdraw form
             if(e.target.id !== 'withdraw-form') return;
             e.preventDefault();
 
+            // *** NEW: Minimum referral check ***
             const minRefsRequired = appConfig.minimumWithdrawReferrals || 0;
             const userReferrals = userState.referrals || 0;
             
             if (minRefsRequired > 0 && userReferrals < minRefsRequired) {
-                tg.showAlert(`Withdrawal failed. You need at least ${minRefsRequired} referrals to make a withdrawal. You currently have ${userReferrals}.`);
-                return;
+                tg.showAlert(\`Withdrawal failed. You need at least \${minRefsRequired} referrals to make a withdrawal. You currently have \${userReferrals}.\`);
+                return; // Stop the function here
             }
 
+            
             const accountNumber = document.getElementById('account-number').value;
             const amount = parseFloat(document.getElementById('amount').value);
             
@@ -653,25 +742,33 @@
             if (userState.balance < amount) { tg.showAlert("⚠️ Insufficient Balance"); return; }
             
             const btn = document.getElementById('withdraw-submit-btn'); btn.disabled = true; btn.textContent = 'Submitting...';
-            
-            // ⚠️ تنبيه أمني: تم إزالة منطق خصم الرصيد وإنشاء طلب السحب من جانب العميل.
-            // يجب استبدال هذا بطلب إلى Cloud Function أو API آمن.
-            
-            // محاكاة للواجهة الأمامية فقط:
+            const db = firebase.database();
             try {
-                await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+                const userRef = db.ref(\`users/\${tgUser.id}\`);
+                // Optimistically update local state for faster UI response
+                userState.balance -= amount;
+                renderUI(); 
                 
-                const newRequest = { amount: amount, status: 'pending', timestamp: Date.now() };
+                // Perform database operations
+                await userRef.child('balance').set(firebase.database.ServerValue.increment(-amount));
+                const reqId = db.ref('withdrawals/pending').push().key;
+                const newRequest = { id: reqId, userId: tgUser.id, userName: \`\${userState.firstName} \${userState.lastName}\`, account: accountNumber, amount: amount, status: 'pending', timestamp: firebase.database.ServerValue.TIMESTAMP };
+                await db.ref(\`withdrawals/pending/\${reqId}\`).set(newRequest);
+                
+                // Add to local history instantly and re-render history
                 userTransactions.unshift(newRequest);
                 renderWithdrawalHistory(); 
 
                 tg.HapticFeedback.notificationOccurred('success');
-                tg.showAlert("Withdrawal request submitted. Logic moved to secure backend.");
+               
                 document.getElementById('withdraw-form').reset();
             } catch (error) {
+                // If error, revert the optimistic update
+                userState.balance += amount;
                 tg.HapticFeedback.notificationOccurred('error'); 
-                tg.showAlert("Failed to submit request. (Logic moved to secure backend)");
+                tg.showAlert("Failed to submit request, Your balance has been restored.");
             } finally {
+                // Ensure UI is correct and button is re-enabled
                 renderUI();
                 btn.disabled = false;
                 btn.textContent = 'SUBMIT';
@@ -719,7 +816,7 @@
             document.getElementById('profile-page').addEventListener('submit', (e) => handleWithdraw(e));
             document.getElementById('referral-section').addEventListener('click', (e) => { if(e.target.id === 'copy-ref-link-btn') copyReferralLink(); });
             document.getElementById('move-to-balance-btn').addEventListener('click', handleMoveToBalance);
-            document.getElementById('claimBtn').addEventListener('click', handleClaimSecretCode); // Add event listener for secret code
+            
         };
 
         const renderAdTask = () => {
